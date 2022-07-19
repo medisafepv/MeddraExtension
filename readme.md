@@ -32,10 +32,6 @@ Program modes:
 
 
 **INSTRUCTIONS**
-1. Binder site 방문 (https://mybinder.org/):
- - GitHub 선택 확인 후 입력: `https://github.com/medisafepv/MeddraExtension`
- - Git ref 입력: `main`
+1. [https://mybinder.org/v2/gh/medisafepv/MeddraExtension/main](https://mybinder.org/v2/gh/medisafepv/MeddraExtension/main)
 
-2. Launch (1-5분)
-
-3. 왼쪽 파일 탐색기 패널에서 `final_WM.ipynb` 더블클릭
+2. 왼쪽 파일 탐색기 패널에서 `final_WM.ipynb` 더블클릭
