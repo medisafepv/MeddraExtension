@@ -52,14 +52,14 @@ def manual_identification(columns, missing, filename="WHOART-MEDRA bridge"):
         
     response = input("위에 제목 중 '{}' 컬럼이 있음 (y) 없음 (n) 종료 (q): ".format(missing))
     while response != "y" and response != "n" and response != "q":
-        print("잘못 입력. 다시 선택해주세요.")
+        print("잘못 입력. 다시 선택하세요.")
         response = input("위에 제목 중 '{}' 컬럼이 있음 (y) 없음 (n) 종료 (q): ".format(missing))
             
     if response == "y":
-        choice_idx = input("    '{}' 컬럼을 숫자로 선택해주세요: ".format(missing))
+        choice_idx = input("    '{}' 컬럼을 숫자로 선택하세요: ".format(missing))
 
         while not choice_idx.isdigit():
-            choice_idx = input("    '{}' 컬럼을 숫자로 다시 선택해주세요 (예: 2): ".format(missing))
+            choice_idx = input("    '{}' 컬럼을 숫자로 다시 선택하세요 (예: 2): ".format(missing))
 
         return columns[int(choice_idx)]
     
@@ -70,9 +70,9 @@ def manual_identification(columns, missing, filename="WHOART-MEDRA bridge"):
 
 
 def confirmation(actual, test):
-    response = input("'{}'이 {} 인지 확인 해주세요 (y/n): ".format(test, actual))
+    response = input("'{}'이 {} 인지 확인 (y/n): ".format(test, actual))
     while response != "y" and response != "n":
-        response = input("'{}'이 {} 인지 다시 확인 해주세요 (y/n): ".format(test, actual))
+        response = input("'{}'이 {} 인지 다시 확인 (y/n): ".format(test, actual))
         
     if response == "y":
         return test
