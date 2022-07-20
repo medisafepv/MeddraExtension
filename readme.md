@@ -2,33 +2,28 @@
 
 Program modes:
 
-1. **AE list WHOART indexing**
+1. **WHOART 용어 1 Extension**
+
+`AE list.xlsx`에 있는 WHOART 용어1을 `WHOART-MedDRA Bridge.xlsx`에 매칭한 후, `llt.asc`/`mdhier.asc` 에 있는 MedDRA SOC 및 PT 컬럼을 붙여 놓기.
 
 ![Mode 1](images/mode1.jpeg)
 
- - Required files: 
-    * `AE list.xlsx`
-    * `WHOART-MedDRA Bridge.xlsx`
-    * MedDRA_English 폴더 $\rightarrow$ MedAscii 폴더 $\rightarrow$ `llt.asc`,  `mdhier.asc`
- - Effect: `AE list.xlsx`에 있는 WHOART 용어1을 `WHOART-MedDRA Bridge.xlsx`에 매칭한 후, `llt.asc`/`mdhier.asc` 에 있는 MedDRA SOC 및 PT 컬럼을 붙여 놓기.
+Required files: 
+* `AE list.xlsx`
+* `WHOART-MedDRA Bridge.xlsx`
+* MedDRA 폴더 $\rightarrow$ MedAscii 폴더 $\rightarrow$ `llt.asc`, `mdhier.asc`
 
-2. **Bridge Extension**
+ 
+2. **MedDRA LLT Extension** 
 
-![Mode 2](images/mode2.jpeg)
+`AE list.xlsx`에 있는 MedDRA LLT을 `llt.asc`/`mdhier.asc` 에 있는 MedDRA SOC 및 PT 컬럼을 붙여 놓기.
 
- - Required files:
-    * `WHOART-MedDRA Bridge.xlsx`
-    * MedDRA_English 폴더 $\rightarrow$ MedAscii 폴더 $\rightarrow$ `llt.asc`,  `mdhier.asc`
- - Effect: `WHOART-MedDRA Bridge.xlsx`에 있는 MedDRA LLT을 `llt.asc`/`mdhier.asc` 에 있는 MedDRA SOC 및 PT 컬럼을 붙여 놓기.
+![Mode 3](images/mode2.jpeg)
 
-3. **AE list Extension**
-
-![Mode 3](images/mode3.jpeg)
-
- - Required files: 
-    * `AE list.xlsx`
-    * MedDRA_English 폴더 $\rightarrow$ MedAscii 폴더 $\rightarrow$ `llt.asc`,  `mdhier.asc`
- - Effect: `AE list.xlsx`에 있는 MedDRA LLT을 `llt.asc`/`mdhier.asc` 에 있는 MedDRA SOC 및 PT 컬럼을 붙여 놓기.
+Required files:
+* `AE list.xlsx`
+    * _LLT Term (english, 한국어, etc.)_
+* MedDRA 폴더 $\rightarrow$ MedAscii 폴더 $\rightarrow$ `llt.asc`, `mdhier.asc`
 
 
 **INSTRUCTIONS**
