@@ -33,12 +33,13 @@ def merge_soc_pt_llt(hier, llt, how="inner", on="pt_code"):
     return spl
 
 
-def process_bridge(uploader, mode):
+def process_bridge(uploader):
     '''
     Same functionality as read_bridge_deprecated, but added with column identification features
     
     * 2.2 : dropna() 
     * 2.3 : removed trailing/leading whitespace in whoart column by clean_list() (LLT column unnecessary due to automatic identification as float)
+    * 3.0 : removed mode parameter since only mode 1 processes bridge now (no need to branch paths)
     '''
     uploader = uploader.value
     file_name = list(uploader.keys())[0]
@@ -46,7 +47,7 @@ def process_bridge(uploader, mode):
     
     bridge.columns = utility.clean_list(bridge.columns)
     
-    cols = utility.bridge_identify(bridge.columns, mode)
+    cols = utility.bridge_identify(bridge.columns)
     interested = list()
     for c in cols:
         if c:
@@ -67,42 +68,50 @@ def process_bridge(uploader, mode):
         return bridge, cols
 
 
-def connect(bridge, spl, bridge_cols, mode, filename, how="left"):
+
+def connect(source, meddra, source_cols, mode, filename, how="left"):
     '''
     New version of generate_full_bridge_deprecated that can be used for AE list extension as well as classic bridge extension
     
-    bridge : series or dataframe that must contain LLT code
+    bridge : series or dataframe that is to be extended
     bridge_cols=[_, <exact LLT code column name in bridge>]
     spl : SOC, PT, LLT terms from MedDRA source file
     how="left" : left join to align with input bridge file
     
     Assumes MedDRA columns do not change in the future
     
-    *2.1 : Removed drop duplicate; Dropped duplicate column later (at the end)
+    * 2.1 : Removed drop duplicate; Dropped duplicate column later (at the end)
+    * 3.0 : mode 2 deprecated 
     '''
 
-    if isinstance(bridge, pd.DataFrame):
-        extended = pd.merge(bridge, spl, how=how, left_on=bridge_cols[1], right_on="llt_code")
+    if mode == "1":
+        extended = pd.merge(source, meddra, how=how, left_on=source_cols[1], right_on="llt_code")
     else:
-        extended = pd.merge(bridge.to_frame(name="llt_code"), spl, how=how, on="llt_code")
+        if isinstance(source, pd.DataFrame):
+            extended = pd.merge(source, meddra, how=how, left_on=source_cols[1], right_on="llt_name")
+        else:
+            extended = pd.merge(source.to_frame(name="llt_name"), meddra, how=how, on="llt_name")
+
     
     if extended.isna().any().any():
         print("*" * 40)
-        missing = extended.loc[extended.isna().any(axis=1)][bridge_cols[1]].values
-        print("{}에 있는 LLT code {}가 MedDRA folder (llt.asc / mdhier.asc)에 없습니다. MedDRA folder (llt.asc / mdhier.asc)가 최신 버전인지 확인하세요.".format(filename, missing))
-        print("  *참고 노트: AE list 파일에 LLT code {} (또는 매칭 된 WHOART 용어1)가 없으면 문제가 발생하지 않습니다; 이 경우에는 (1 or 2) 선택하세요.".format(missing))
-        print("  *참고 노트: AE list 파일에 LLT code {} (또는 매칭 된 WHOART 용어1)가 있으면 문제가 발생합니다; 이 경우에는 (0) 선택하시고, MedDRA folder (llt.asc / mdhier.asc)가 최신 버전인지 확인하세요.".format(missing))
+        missing = extended.loc[extended.isna().any(axis=1)][source_cols[1]].values
+        print("{}에 해당하는 LLT code:".format(filename))
+        for m in missing:
+            print("    {}".format(m))
+        print("위 LLT code가 MedDRA folder (llt.asc / mdhier.asc)에 없습니다. MedDRA folder (llt.asc / mdhier.asc) 버전인지 확인하세요.")
+        print("  * 참고 노트: AE list 파일에 위 LLT code (정확히 위 LLT code가 매칭된 WHOART 용어 1) 하당해야 문제가 발생합니다".format(missing))
 
         print("    (0) 종료")
         print("    (1) NaN으로 진행")
         print("    (2) NaN 삭제")
         num = input(": ")
 
-        while num != "0" and num != "1" and num != "2":
+        while num not in ["0" , "1", "2"]:
             print("    (0) 종료")
             print("    (1) NaN으로 진행")
             print("    (2) NaN 삭제")
-            num = input("0/1/2 입력해주세요: ")
+            num = input("0/1/2 입력하세요: ")
 
         if num == "0":
             raise utility.StopExecution
@@ -112,40 +121,53 @@ def connect(bridge, spl, bridge_cols, mode, filename, how="left"):
         else:
             extended = extended.dropna().reset_index(drop=True)
         
-    if isinstance(bridge, pd.DataFrame):
-        # Merging during bridge extension produces duplicate MedDRA LLT code columns. Keep the MedDRA source column.
-        extended = extended.drop(columns=[bridge_cols[1]])
+    if isinstance(source, pd.DataFrame):
+        extended = extended.drop(columns=[source_cols[1]])
         
     return extended
 
 
 def process_ae(uploader, mode):
     '''
-    
+    Processes AE list 
+    Returns  
+    - AE list dataframe with case number (or row number if not present)
+    - List of column names [case number (or row number), term]
     
     * 1.2 : dropna()
     * 1.3 : removed trailing/leading whitespace for whoart column by clean_list()
+    * 2.0 : only mode 2 processes AE list now (no need to branch paths)
+    * 2.1 : updated with new functionalities (e.g., clean list value, remove rows with empty string)
     '''
     uploader = uploader.value
     file_name = list(uploader.keys())[0]
     df = pd.read_excel(io.BytesIO(uploader[file_name]["content"]))
+    
+    # Drop empty rows at end, if any
+    df = df[df.columns].dropna(how="all")
     
     # remove leading/trailing whitespace in column names
     df.columns = utility.clean_list(df.columns)
     
     cols = utility.ae_identify(df.columns, mode)
     
-    while not (~df[cols[1]].isna()).any():
-        # If ALL are NaN values, reselect
-        print("{}컬럼이 비어있습니다. 다시 선택해주세요.".format(cols[1]))
+    while df[cols[1]].isna().any():
+        # If any are NaN values in significant column, reselect
+        print("{}컬럼이 비어있습니다. 다시 선택하세요.".format(cols[1]))
         subset = list(df.columns)
         subset.remove(cols[1])
         cols = utility.ae_identify(subset, mode)
     
     try:
-        df[cols[1]] = utility.clean_list(df[cols[1]]) # will result in error if LLT
-    except TypeError:
-        pass
+        # Signficiant column is LLT term or WHO-ART (str), so no type error
+        df[cols[1]] = utility.clean_list(list(df[cols[1]])) 
+    except AttributeError:
+        print("AE list 파일 컬럼이 숫자로 인식.")
+        print("종료.")
+        raise utility.StopExecution
+
+    # Remove rows with empty string, if exists after cleaning
+    df = df[df[cols[1]].astype(bool)] 
     
     if "" in cols:
         # If missing a column, there can only be missing case no. due to invariant of ae_identify() => cols[1]
@@ -155,10 +177,10 @@ def process_ae(uploader, mode):
         # Add header and convert to 1-indexing
         
         new_cols = ["Row Number", cols[1]]
-        return df[new_cols].dropna(how="all", subset=[cols[1]]), new_cols
+        
+        return df[new_cols], new_cols
     else:
-        return df[cols].dropna(how="all", subset=cols), cols
-    
+        return df[cols], cols
     
 def solve_duplicates(full_bridge, ae_list, fb_whoart, ae_whoart):
     '''
@@ -222,7 +244,7 @@ def solve_duplicates(full_bridge, ae_list, fb_whoart, ae_whoart):
     
 def index_ae_list(ae_list, full_key, whoart, how="left"):
     '''
-    
+    Used exclusively for mode 1
     '''
     terms = ["llt_name", "pt_name", "soc_name"]
     interested = list(ae_list.columns) + terms
@@ -249,7 +271,7 @@ def index_ae_list(ae_list, full_key, whoart, how="left"):
                 print("    (0) 종료")
                 print("    (1) NaN으로 진행")
                 print("    (2) NaN 삭제")
-                num = input("0/1/2 입력해주세요: ")
+                num = input("0, 1, 2 입력하세요: ")
 
             if num == "0":
                 raise utility.StopExecution
@@ -278,20 +300,31 @@ def prompt_upload(description):
     uploader.observe(on_upload_change, names='value')
     return uploader
 
+def make_meddra_unique(meddra):
+    '''
+    New function added with mode 1, 2 update
+    Removes duplicates in MedDRA joined dataframe where every other column except llt_code is the same
+    - Different with each language
+    '''
+    repeats = meddra.loc[meddra.duplicated(subset=["llt_name", "pt_code", "soc_code", "soc_name"], keep=False)]
+    unique = repeats.loc[~repeats.duplicated(subset=["llt_name", "pt_code", "soc_code", "soc_name"], keep="first")].sort_index()
+    rest = meddra.loc[~meddra.duplicated(subset=["llt_name", "pt_code", "soc_code", "soc_name"], keep=False)]
+    return pd.concat([rest, unique], sort=False).sort_index().reset_index(drop=True)
+
+
 
 def prompt_modes():
     utility.print_modes()
     mode = input("Select program modes: ")
-    while mode != "1" and mode != "2" and mode != "3" and mode != "4":
+    while mode not in ["1", "2", "3"]:
         utility.print_modes()
-        mode = input("Select program modes: ")
+        mode = input("Reselect program modes (1, 2, 3): ")
 
-    if mode == "4":
+    if mode == "3":
         raise utility.StopExecution
 
-    words = {"1" : ["llt.asc", "mdhier.asc", "WHOART-MedDRA bridge.xlsx", "AE list"], 
-             "2" : ["llt.asc", "mdhier.asc", "WHOART-MedDRA bridge.xlsx"], 
-             "3" : ["llt.asc", "mdhier.asc", "AE list"]}
+    words = {"1" : ["llt.asc", "mdhier.asc", "WHOART-MedDRA bridge (.xlsx)", "AE list (.xlsx)"], 
+         "2" : ["llt.asc", "mdhier.asc", "AE list (.xlsx)"]}
 
     items = []
     for w in words[mode]:
@@ -302,10 +335,12 @@ def prompt_modes():
 
 def control_process(items, mode):
     '''
+    Program main function
+    
     items[0] : llt.asc
     items[1] : mdhier.asc
-    items[2] : bridge.xlsx, if mode 1 or 2
-    items[2] : AE list.xlsx, if mode 3
+    items[2] : bridge.xlsx, if mode 1
+    items[2] : AE list.xlsx, if mode 2
     items[3] : AE list.xlsx, if mode 1
     '''
 
@@ -313,31 +348,28 @@ def control_process(items, mode):
     llt = process_llt(items[0])
     soc_pt = process_hierarchical(items[1])
     meddra = merge_soc_pt_llt(llt, soc_pt)
+    meddra_uniq = make_meddra_unique(meddra)
 
-    if mode != "3":
-        # Modes 1 and 2 take bridge file as input
-        partial_bridge, bridge_columns = process_bridge(items[2], mode)
-        full_bridge = connect(partial_bridge, meddra, bridge_columns, mode, filename="WHO-ART MedDRA bridge")
+    if mode == "1":
+        # Only mode 1 takes bridge file as input
+        partial_bridge, bridge_columns = process_bridge(items[2])
 
-        if mode == "2" or not isinstance(partial_bridge, pd.DataFrame):
-            # Bridge extension mode
-            full_bridge = full_bridge.drop(columns=["pt_code", "soc_code"])
-            full_bridge = full_bridge.rename(columns={"llt_code" : 'MedDRA LLT Code', 'llt_name' : 'MedDRA LLT', 'pt_name' : "MedDRA PT", 'soc_name' : "MedDRA SOC"})
-            return full_bridge
+        # When forming the full bridge (i.e., all MedDRA terms), include all llt codes 
+        full_bridge = connect(partial_bridge, meddra, bridge_columns, mode, filename="WHOART MedDRA bridge")
 
-        # Modes 1 takes AE list as input
-        if mode == "1":
-            ae_list, ae_list_columns = process_ae(items[3], mode)
-            
-            # Handle duplicates
-            full_bridge = solve_duplicates(full_bridge, ae_list, bridge_columns[0], ae_list_columns[1])
-            
-            indexed = index_ae_list(ae_list, full_bridge, bridge_columns[0])
-            return indexed
-    
-    # Modes 3 takes AE list as input
+        ae_list, ae_list_columns = process_ae(items[3], mode)
+
+        # Handle duplicates
+        full_bridge = solve_duplicates(full_bridge, ae_list, bridge_columns[0], ae_list_columns[1])
+
+        indexed = index_ae_list(ae_list, full_bridge, bridge_columns[0])
+        return indexed
+
+    # Mode 2 takes AE list as input
     ae_list, ae_list_columns = process_ae(items[2], mode)
-    full_ae_list = connect(ae_list, meddra, ae_list_columns, mode, filename="AE list")
-    full_ae_list = full_ae_list.drop(columns=["pt_code", "soc_code"])
-    full_ae_list = full_ae_list.rename(columns={"llt_code" : 'MedDRA LLT Code','llt_name' : 'MedDRA LLT','pt_name' : "MedDRA PT", 'soc_name' : "MedDRA SOC"})
-    final = full_ae_list
+    full_ae_list = connect(ae_list, meddra_uniq, ae_list_columns, mode, filename="AE list")
+    full_ae_list = full_ae_list.drop(columns=["llt_code", "pt_code", "soc_code"])
+    full_ae_list = full_ae_list.rename(columns={'llt_name' : 'MedDRA LLT',
+                                                'pt_name' : "MedDRA PT",
+                                                'soc_name' : "MedDRA SOC"})
+    return full_ae_list
