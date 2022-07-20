@@ -15,6 +15,7 @@ Required files:
 
  
 2. **MedDRA LLT Extension** 
+* 참고 사항: `AE list.xlsx`의 MedDRA LLT Term 언어가 `llt.asc`/`mdhier.asc`의 언어와 동일해야합니다 (예: 한국어, 한국어)
 
 `AE list.xlsx`에 있는 MedDRA LLT을 `llt.asc`/`mdhier.asc` 에 있는 MedDRA SOC 및 PT 컬럼을 붙여 놓기.
 
