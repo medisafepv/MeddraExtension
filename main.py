@@ -1,5 +1,6 @@
 import io
 import pandas as pd
+import difflib
 import ipywidgets as widgets
 from ipywidgets import HBox, FileUpload, Layout
 
@@ -67,61 +68,109 @@ def process_bridge(uploader):
         
         return bridge, cols
 
+    
 
 
-def connect(source, meddra, source_cols, mode, filename, how="left"):
+def connect(source, meddra, source_cols, mode, filename, how="left", first_call=True):
     '''
-    New version of generate_full_bridge_deprecated that can be used for AE list extension as well as classic bridge extension
+    Used to extend AE list (mode 2) and bridge (mode 1)
     
-    bridge : series or dataframe that is to be extended
-    bridge_cols=[_, <exact LLT code column name in bridge>]
-    spl : SOC, PT, LLT terms from MedDRA source file
-    how="left" : left join to align with input bridge file
-    
-    Assumes MedDRA columns do not change in the future
-    
+    source : series or dataframe that is to be extended
+    source_cols = [_, <exact LLT column name in source>]
+    meddra : SOC, PT, LLT terms from MedDRA source file
+    how = "left" : left join to align with input source file
+        
     * 2.1 : Removed drop duplicate; Dropped duplicate column later (at the end)
-    * 3.0 : mode 2 deprecated 
+    * 3.0 : Mode 3 deprecated 
+    * 4.0 : Similar match functionality and lower case standardization for indexing
+    * 4.1 : Customize max number of similarity matches
+    * 4.2 : Changed first_call behaviour
+    * 5.0 : Reset parameters midsearch
+    * 5.1 : Infinite loop bug fixed (when no search results found)
     '''
 
     if mode == "1":
         extended = pd.merge(source, meddra, how=how, left_on=source_cols[1], right_on="llt_code")
     else:
         if isinstance(source, pd.DataFrame):
-            extended = pd.merge(source, meddra, how=how, left_on=source_cols[1], right_on="llt_name")
+            extended = pd.merge(source, meddra, how=how, left_on=source_cols[1], right_on="llt_name_lc")
         else:
-            extended = pd.merge(source.to_frame(name="llt_name"), meddra, how=how, on="llt_name")
+            extended = pd.merge(source.to_frame(name="llt_name_lc"), meddra, how=how, on="llt_name_lc")
 
-    
     if extended.isna().any().any():
         print("*" * 40)
         missing = extended.loc[extended.isna().any(axis=1)][source_cols[1]].values
-        print("{}에 해당하는 LLT code:".format(filename))
+        print("{}에 해당하는 LLT:".format(filename))
         for m in missing:
             print("    {}".format(m))
-        print("위 LLT code가 MedDRA folder (llt.asc / mdhier.asc)에 없습니다. MedDRA folder (llt.asc / mdhier.asc) 버전인지 확인하세요.")
-        print("  * 참고 노트: AE list 파일에 위 LLT code (정확히 위 LLT code가 매칭된 WHOART 용어 1) 하당해야 문제가 발생합니다".format(missing))
-
+            
+        print("위 LLT는 MedDRA folder (llt.asc / mdhier.asc)에 없습니다.")
+        
+        if len(missing) == len(source):
+            print("**'{}'의 언어와 llt.asc / mdhier.asc의 언어가 같은지 확인**".format(source_cols[1]))
+        
+        if mode == "1":
+            print("**위에 출력된 LLT (정확히 LLT랑 매칭하는 WHOART 용어 1)이 AE list 파일에 해당해야 문제가 발생합니다**".format(missing))
+            print("**AE list 파일에 출력된 LLT가 없는지 확인 후, 옵션 (2)/(3)로 진행하세요. 그 외에는 (1)로 직접 선택하세요.**")
+        
         print("    (0) 종료")
-        print("    (1) NaN으로 진행")
-        print("    (2) NaN 삭제")
+        print("    (1) 비슷한 용어 찾고 직접 선택")
+        print("    (2) NaN으로 진행")
+        print("    (3) NaN 삭제")
         num = input(": ")
 
-        while num not in ["0" , "1", "2"]:
-            print("    (0) 종료")
-            print("    (1) NaN으로 진행")
-            print("    (2) NaN 삭제")
-            num = input("0/1/2 입력하세요: ")
+        while num not in ["0" , "1", "2", "3"]:
+            num = input("(0, 1, 2, 3) 입력하세요: ")
 
         if num == "0":
             raise utility.StopExecution
         elif num == "1":
-            # keep
-            pass
+            # Set initial search parameters
+            eps, N = utility.prompt_search_parameters()
+            
+            # Loop through all unrecognized words
+            for word_num, m in enumerate(missing):
+                matches = []
+                opt = "0"
+                
+                while int(opt) == len(matches):
+                    
+                    if int(opt) > 0:
+                        # Selected to reset parameters
+                        eps, N = utility.prompt_search_parameters()
+                
+                    # Otherwise, continue with past set values
+                    print("({}/{}) MedDRA folder에 '{}'랑 비슷한 용어 찾는중...".format(word_num + 1, len(missing), m), end="")
+                    matches = difflib.get_close_matches(m, meddra["llt_name_lc"], n=int(N), cutoff=float(eps))
+
+                    if matches:
+                        print()
+                        for i, sim in enumerate(matches):
+                            print("    ({}) {}".format(i, sim))
+
+                        print("    ({}) 설정 다시선택하기 (검색 범위 확장)".format(len(matches)))
+                              
+                        opt = input("  '{}' ≈ ".format(m))
+                        while not opt.isdigit() or int(opt) > len(matches):
+                            opt = input("  '{}' ≈ ".format(m))
+                            
+                        if int(opt) == len(matches):
+                            continue
+
+                        source.loc[source[source_cols[1]] == m, source_cols[1]] = matches[int(opt)]
+                    else:
+                        print("검색 결과 없음.")
+                        break
+
+            extended = connect(source, meddra, source_cols, mode, filename, how, first_call=False)
+
+        elif num == "2":
+            pass # as is
         else:
             extended = extended.dropna().reset_index(drop=True)
+
         
-    if isinstance(source, pd.DataFrame):
+    if first_call and isinstance(source, pd.DataFrame):
         extended = extended.drop(columns=[source_cols[1]])
         
     return extended
@@ -138,29 +187,39 @@ def process_ae(uploader, mode):
     * 1.3 : removed trailing/leading whitespace for whoart column by clean_list()
     * 2.0 : only mode 2 processes AE list now (no need to branch paths)
     * 2.1 : updated with new functionalities (e.g., clean list value, remove rows with empty string)
+    * 2.2 : LLT lowercase standardization for indexing
+    * 2.3 : remove rows if LLT or WHOART column is missing any values
     '''
     uploader = uploader.value
     file_name = list(uploader.keys())[0]
     df = pd.read_excel(io.BytesIO(uploader[file_name]["content"]))
     
     # Drop empty rows at end, if any
-    df = df[df.columns].dropna(how="all")
+    df = df.dropna(how="all")
     
     # remove leading/trailing whitespace in column names
     df.columns = utility.clean_list(df.columns)
     
+    # cols[1] is LLT or WHOART column
     cols = utility.ae_identify(df.columns, mode)
     
-    while df[cols[1]].isna().any():
-        # If any are NaN values in significant column, reselect
+    while df[cols[1]].isna().all():
+        # If all are NaN values in significant column, reselect
         print("{}컬럼이 비어있습니다. 다시 선택하세요.".format(cols[1]))
         subset = list(df.columns)
         subset.remove(cols[1])
         cols = utility.ae_identify(subset, mode)
     
+    # Guaranteed that LLT or WHOART column has SOME value
+    df = df.dropna(subset=[cols[1]])
+    
     try:
         # Signficiant column is LLT term or WHO-ART (str), so no type error
-        df[cols[1]] = utility.clean_list(list(df[cols[1]])) 
+        df[cols[1]] = utility.clean_list(list(df[cols[1]]))
+        
+        # Make lowercase
+        df[cols[1]] = df[cols[1]].str.lower()
+        
     except AttributeError:
         print("AE list 파일 컬럼이 숫자로 인식.")
         print("종료.")
@@ -182,10 +241,13 @@ def process_ae(uploader, mode):
     else:
         return df[cols], cols
     
+    
 def solve_duplicates(full_bridge, ae_list, fb_whoart, ae_whoart):
     '''
-    Mode 1 issue only
+    Mode 1 only
     Solves duplicate WHOART terms in bridge file
+    
+    * 1.1 : Added progress counter
     '''
     
     print("*" * 40)
@@ -194,7 +256,7 @@ def solve_duplicates(full_bridge, ae_list, fb_whoart, ae_whoart):
     print("    (2) 직접 선택")
     print("    (3) 첫번제 LLT/SOC 선택")
     print("    (4) 종료")
-    option = input("Duplicate 처리 방법: ")
+    option = input("처리 방법: ")
     
     while option not in ["1", "2", "3", "4"]:
         option = input("다시 선택하세요: ")
@@ -214,13 +276,13 @@ def solve_duplicates(full_bridge, ae_list, fb_whoart, ae_whoart):
             
             # Manually select
             rows = list()
-            for s in whoart_set:
+            for i, s in enumerate(whoart_set):
                 partial_df = full_bridge.loc[full_bridge[fb_whoart] == s].reset_index(drop=True)
                 print(partial_df.to_string())
-                num = input("'{}' 행을 선택하세요 (왼쪽 숫자): ".format(s))
+                num = input("({}/{}) '{}' 행을 선택하세요 (왼쪽 숫자): ".format(i + 1, len(whoart_set), s))
 
                 while not num.isdigit() or not int(num) < len(partial_df):
-                    num = input("'{}' 행을 다시 선택하세요 (왼쪽 숫자): ".format(s))
+                    num = input("({}/{}) '{}' 행을 다시 선택하세요 (왼쪽 숫자): ".format(i + 1, len(whoart_set), s))
 
                 rows.append(partial_df.iloc[int(num)])
 
@@ -333,6 +395,15 @@ def prompt_modes():
     return items, mode
 
 
+def add_lowercase_col(meddra):
+    '''
+    New function added with lowercase standardization update
+    Adds a column titled 'llt_name_lc' that is an exact copy of 'llt_name' but lowercase
+    '''
+    meddra["llt_name_lc"] = meddra["llt_name"].str.lower()
+    return meddra
+
+
 def control_process(items, mode):
     '''
     Program main function
@@ -348,7 +419,7 @@ def control_process(items, mode):
     llt = process_llt(items[0])
     soc_pt = process_hierarchical(items[1])
     meddra = merge_soc_pt_llt(llt, soc_pt)
-    meddra_uniq = make_meddra_unique(meddra)
+    meddra_uniq = add_lowercase_col(make_meddra_unique(meddra))
 
     if mode == "1":
         # Only mode 1 takes bridge file as input
@@ -368,8 +439,10 @@ def control_process(items, mode):
     # Mode 2 takes AE list as input
     ae_list, ae_list_columns = process_ae(items[2], mode)
     full_ae_list = connect(ae_list, meddra_uniq, ae_list_columns, mode, filename="AE list")
-    full_ae_list = full_ae_list.drop(columns=["llt_code", "pt_code", "soc_code"])
+    full_ae_list = full_ae_list.drop(columns=["llt_code", "pt_code", "soc_code", "llt_name_lc"])
     full_ae_list = full_ae_list.rename(columns={'llt_name' : 'MedDRA LLT',
                                                 'pt_name' : "MedDRA PT",
                                                 'soc_name' : "MedDRA SOC"})
     return full_ae_list
+
+

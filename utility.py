@@ -124,6 +124,7 @@ def ae_identify(columns, mode):
     
     * 2.0 : updated mode control to only 1 vs. 2
     * 2.1 : no user input behaviour simplified
+    * 2.2 : 'key' is a new keyword for case number column
     '''
     print("=" * 40)
     print("AE list file")
@@ -140,8 +141,8 @@ def ae_identify(columns, mode):
         if not case_id:
             # if not identified yet
             lower = col.lower()
-            if "kd" in lower or "case" in lower or "no." in lower or "number" in lower or "#" in lower:
-                case_id = confirmation(actual="KD NO (case number)", test=col)
+            if "kd" in lower or "case" in lower or "key" in lower or "number" in lower or "#" in lower:
+                case_id = confirmation(actual="Case number", test=col)
                 
         if not term:
             # if not identified yet
@@ -154,14 +155,27 @@ def ae_identify(columns, mode):
             else:
                 # Search for LLT term if mode 2
                 if "llt" in lower or "term" in lower or ("lower" in lower and "level" in lower and "term" in lower):
-                    # Takes precedence for future proofing (WHO-ART deprecation)
-                    term = confirmation(actual=critical_column, test=col)
+                    term = confirmation(actual=critical_column + " (언어 주의)", test=col)
                     
     if not case_id:
-        case_id = manual_identification(columns, "KD NO (case number)", "AE list")
+        case_id = manual_identification(columns, "Case number", "AE list")
 
     while not term:
         term = manual_identification(columns, critical_column, "AE list")
     
         
     return [case_id, term]
+
+
+def prompt_search_parameters():
+    eps = input("- 유사성 임계값 (0=모두 매치, 1=매치 없음) (추천 0.6): ")
+    while not eps.isdigit or float(eps) < 0 or float(eps) > 1:
+        print("0과 1 사이만 가능")
+        eps = input("- 유사성 임계값 (0=모두 매치, 1=매치 없음) (추천 0.6): ")
+
+    N = input("- 유사 단어의 최대 수 (추천 5): ")
+    while not N.isdigit or int(N) > 15:
+        print("시간 제한으로 인해 최대 15")
+        N = input("- 유사 단어의 최대 수 (추천 5): ")
+        
+    return eps, N
