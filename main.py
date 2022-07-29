@@ -1,12 +1,26 @@
+'''
+final_WM program
+
+Author: Sion Kim
+Contact: sionkim@umich.edu
+Latest Edit: 07/29/2022
+'''
+
+# Libraries
 import io
 import pandas as pd
 import difflib
 import ipywidgets as widgets
 from ipywidgets import HBox, FileUpload, Layout
 
+# Helper functions
 import utility
 
 def process_llt(uploaded):
+    '''
+    Given uploaded llt.asc file, returns a dataframe with the columns ["llt_code", "llt_name", "pt_code"] only
+    - uploaded : FileUpload instance from ipywidget class (contains necessary file)
+    '''
     llt_names = ["llt_code", "llt_name", "pt_code",
              "llt_soc_code", "llt_whoart_code", "llt_harts_code",
              "llt_costart_sym", "llt_icd9_code", "llt_icd10_code",
@@ -16,6 +30,14 @@ def process_llt(uploaded):
 
 
 def process_hierarchical(uploaded):
+    '''
+    Given uploaded mdhier.asc file, returns a dataframe with the columns ["pt_code", "pt_name", "soc_code", "soc_name"] only
+    Note: 
+        In case of multiple PT/SOC branches for one LLT, the primary PT/SOC terms will be used. 
+        Functionality to allow secondary terms has not been implemented, but may be necessary in the future
+    
+    - uploaded : FileUpload instance from ipywidget class (contains necessary file)
+    '''
     hier_names = ["pt_code", "hlt_code", "hlgt_code",
                              "soc_code", "pt_name", "hlt_name",
                              "hlgt_name", "soc_name", "soc_abbrev", "null_field",
@@ -29,6 +51,11 @@ def process_hierarchical(uploaded):
     return hier
 
 def merge_soc_pt_llt(hier, llt, how="inner", on="pt_code"):
+    '''
+    Joins the llt.asc and mdhier.asc files by an inner join on 'pt_code' keyword
+    Follows the join table diagram in 'intguide_ 25_0_English.pdf' file located in MedDRA_25_0_English folder
+    
+    '''
     spl = pd.merge(hier, llt, how=how, on=on)
     assert not spl.isna().any().any()
     return spl
@@ -36,11 +63,20 @@ def merge_soc_pt_llt(hier, llt, how="inner", on="pt_code"):
 
 def process_bridge(uploader):
     '''
+    Given uploaded WHOART-MEDDRA file, returns 
+    1. dataframe with the columns [<WHOART column>, <LLT Code column>] only
+    2. columns [<WHOART column>, <LLT Code column>]
+        columns is returned due to an instance in which column titles in dataframe were switched (i.e., unable to identify which is WHOAT and LLT).
+        May not be needed if column order invariance is guaranteed by pandas
+        
+    - uploaded : FileUpload instance from ipywidget class (contains necessary file)
+    
+    Old notes:
     Same functionality as read_bridge_deprecated, but added with column identification features
     
     * 2.2 : dropna() 
     * 2.3 : removed trailing/leading whitespace in whoart column by clean_list() (LLT column unnecessary due to automatic identification as float)
-    * 3.0 : removed mode parameter since only mode 1 processes bridge now (no need to branch paths)
+    * 3.0 : removed mode parameter since only mode 1 processes bridge now (i.e., no need to branch paths)
     '''
     uploader = uploader.value
     file_name = list(uploader.keys())[0]
@@ -85,8 +121,8 @@ def connect(source, meddra, source_cols, mode, filename, how="left", first_call=
     * 4.0 : Similar match functionality and lower case standardization for indexing
     * 4.1 : Customize max number of similarity matches
     * 4.2 : Changed first_call behaviour
-    * 5.0 : Reset parameters midsearch
-    * 5.1 : Infinite loop bug fixed (when no search results found)
+    * 5.0 : Ability to reset parameters midloop
+    * 5.1 : Infinite loop fixed (when no search results found)
     '''
 
     if mode == "1":
@@ -180,8 +216,8 @@ def process_ae(uploader, mode):
     '''
     Processes AE list 
     Returns  
-    - AE list dataframe with case number (or row number if not present)
-    - List of column names [case number (or row number), term]
+    1. AE list dataframe with case number (or row number if not present)
+    2. List of column names [case number (or row number), term]
     
     * 1.2 : dropna()
     * 1.3 : removed trailing/leading whitespace for whoart column by clean_list()
@@ -306,7 +342,10 @@ def solve_duplicates(full_bridge, ae_list, fb_whoart, ae_whoart):
     
 def index_ae_list(ae_list, full_key, whoart, how="left"):
     '''
-    Used exclusively for mode 1
+    Mode 1 only
+    Conducts a left join on AE list and the WHOART-MEDDRA dataframe which also contains corresponding PT/SOC tterms
+    
+    - whoart : string title for the WHOART column in WHOART-MEDDRA dataframe
     '''
     terms = ["llt_name", "pt_name", "soc_name"]
     interested = list(ae_list.columns) + terms
@@ -315,7 +354,7 @@ def index_ae_list(ae_list, full_key, whoart, how="left"):
     
     combined = combined[interested]
     
-    
+    # Exception handling
     if combined.isna().any().any():
         # There is any missing value 
         print("*" * 40)
@@ -349,6 +388,10 @@ def index_ae_list(ae_list, full_key, whoart, how="left"):
     return combined
 
 def prompt_upload(description):
+    '''
+    Prompts use to upload a file by ipywidget. Returns instance of FileUpload. 
+    - description : string desciption for file upload widget
+    '''
     uploader = FileUpload(description=description, layout=Layout(width="250px"), multiple=False)
     display(uploader)
 
@@ -364,9 +407,8 @@ def prompt_upload(description):
 
 def make_meddra_unique(meddra):
     '''
-    New function added with mode 1, 2 update
     Removes duplicates in MedDRA joined dataframe where every other column except llt_code is the same
-    - Different with each language
+        Different behaviour for different languages
     '''
     repeats = meddra.loc[meddra.duplicated(subset=["llt_name", "pt_code", "soc_code", "soc_name"], keep=False)]
     unique = repeats.loc[~repeats.duplicated(subset=["llt_name", "pt_code", "soc_code", "soc_name"], keep="first")].sort_index()
@@ -376,6 +418,9 @@ def make_meddra_unique(meddra):
 
 
 def prompt_modes():
+    '''
+    Prompts user for mode (1/2) and prompts the corresponding files
+    '''
     utility.print_modes()
     mode = input("Select program modes: ")
     while mode not in ["1", "2", "3"]:
@@ -397,7 +442,6 @@ def prompt_modes():
 
 def add_lowercase_col(meddra):
     '''
-    New function added with lowercase standardization update
     Adds a column titled 'llt_name_lc' that is an exact copy of 'llt_name' but lowercase
     '''
     meddra["llt_name_lc"] = meddra["llt_name"].str.lower()
@@ -406,7 +450,7 @@ def add_lowercase_col(meddra):
 
 def control_process(items, mode):
     '''
-    Program main function
+    main function
     
     items[0] : llt.asc
     items[1] : mdhier.asc

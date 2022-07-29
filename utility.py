@@ -1,8 +1,20 @@
+'''
+final_WM program
+
+Author: Sion Kim
+Contact: sionkim@umich.edu
+Latest Edit: 07/29/2022
+'''
+
+# Libraries
 import io
 import pandas as pd
 
 
 class StopExecution(Exception):
+    '''
+    Silently halts cell execution
+    '''
     def _render_traceback_(self):
         pass
     
@@ -16,11 +28,10 @@ def print_modes():
 
 def clean_list(list_in):
     '''
-    Helper function for identifying columns in AE list file
-    Removes trailing and leading whitespace from each string element in list
-    Maintains order
-    
-    * 2.0 : changed from regex to strip() method. No longer need re library.
+    Helper function for process_ type functions in main.py
+    Returns list_in with trailing and leading whitespace removed from each string element   
+
+    list_in : list of string elements
     '''
     new_list = list()
     for s in list_in:
@@ -29,8 +40,13 @@ def clean_list(list_in):
 
 def read_meddra_files(uploader, names_in, cols):
     '''
-    Helper function for process_ type functions
-    Prompts user to upload file 
+    Helper function for process_ type functions in main.py
+    Takes in user uploaded data in uploader, renames headers according to names_in, and returns
+    a dataframe with columns specified by cols
+    
+    uploader : FileUpload instance from ipywidget class (contains necessary file)
+    names_in : list of headers to rename the existing headers (order sensitive)
+    cols : subset of names_in to determine the column of return dataframe
     ''' 
     uploader = uploader.value
     file_name = list(uploader.keys())[0]
@@ -42,11 +58,14 @@ def read_meddra_files(uploader, names_in, cols):
 
 def manual_identification(columns, missing, filename="WHOART-MEDRA bridge"):
     '''
-    Prompts user to identify missing header in columns
-    - missing : string header
-    - columns : list of strings to select from
-    - filename : string filename
+    Helper function for _identify type functions in utility.py
+    Prompts user to identify missing string heade in a list of possible headers in columns. 
+    If missing is in columns, return corresponding match in columns. Otherwise, return empty string
+    - missing : string header 
+    - columns : list of strings to prompt user for match with missing
+    - filename : string filename used as reference information for the user
     '''
+    
     print("*" * 40)
     print("{} 파일에서 '{}'을 찾지 못했습니다.".format(filename, missing))
     print("{} 파일 제목:".format(filename))
@@ -73,6 +92,12 @@ def manual_identification(columns, missing, filename="WHOART-MEDRA bridge"):
 
 
 def confirmation(actual, test):
+    '''
+    Helper function for _identify type functions in utility.py
+    Prompts user whether test is equivalent to actual. Returns test if true. Otherwise, return empty string.
+    - actual : string 
+    - test : string
+    '''
     response = input("'{}'이 {} 인지 확인 (y/n): ".format(test, actual))
     while response != "y" and response != "n":
         response = input("'{}'이 {} 인지 다시 확인 (y/n): ".format(test, actual))
@@ -83,12 +108,11 @@ def confirmation(actual, test):
 
 def bridge_identify(columns):
     '''
-    Helper function for process_bridge()
-    Returns [WHOART, LLT] from bridge file
+    Helper function for process_bridge() in utility.py
+    Given the list of columns in WHOART-MEDDRA bridge file, prompts user and identifies the WHOART column and LLT Code column. 
+    Returns the exact header for the WHOART column and LLT Code column grouped as a list (invariant order) i.e., [<WHOART column>, <LLT Code column>]
     
-    * 1.1 : Added mode parameter
-    * 2.0 : Removed mode parameter since only mode 1 processes bridge now (no need to branch paths)
-    * 2.1 : No user input behaviour simplification
+    - columns : list of columns in WHOART-MEDDRA bridge file
     '''
     print("=" * 40)
     print("WHOART-MEDRA bridge file")
@@ -119,11 +143,18 @@ def bridge_identify(columns):
 
 def ae_identify(columns, mode):
     '''
-    Helper function for identifying columns in AE list file
-    Returns [case number, whoart EOR llt code] in specified order
+    Helper function for process_ae function in main.py
+    Given the list of columns in AE list file, 
+    prompts user and identifies the exact column headers for 
+    1. Case Number (if present, empty string otherwise), 
+    2. WHOART column, and 
+    3. LLT Term column 
+    grouped together as a list (invariant order) i.e., returns [<Case Number (optional)>, <WHOART column> EOR <LLT Term column>].
     
-    * 2.0 : updated mode control to only 1 vs. 2
-    * 2.1 : no user input behaviour simplified
+    - columns : list of columns in AE list file
+    - mode={"1", "2"} : AE list is used for both modes and contains different headers accoding to each mode
+        See description in readme for more details
+    
     * 2.2 : 'key' is a new keyword for case number column
     '''
     print("=" * 40)
@@ -156,10 +187,12 @@ def ae_identify(columns, mode):
                 # Search for LLT term if mode 2
                 if "llt" in lower or "term" in lower or ("lower" in lower and "level" in lower and "term" in lower):
                     term = confirmation(actual=critical_column + " (언어 주의)", test=col)
-                    
+          
+    # Case Number is optional
     if not case_id:
         case_id = manual_identification(columns, "Case number", "AE list")
 
+    # Ensure that either WHOART term or LLT term is present 
     while not term:
         term = manual_identification(columns, critical_column, "AE list")
     
@@ -168,14 +201,20 @@ def ae_identify(columns, mode):
 
 
 def prompt_search_parameters():
+    '''
+    Helper function for connect function in main.py file
+    Prompts user for two parameters used for find similar string functionality in connect function
+    1. Threshold (0, 1)
+    2. Maximum number of similar strings to be returned (N)
+    Returns as a tuple (eps, N)
+    '''
     eps = input("- 유사성 임계값 (0=모두 매치, 1=매치 없음) (추천 0.6): ")
     while not eps.isdigit or float(eps) < 0 or float(eps) > 1:
         print("0과 1 사이만 가능")
         eps = input("- 유사성 임계값 (0=모두 매치, 1=매치 없음) (추천 0.6): ")
 
     N = input("- 유사 단어의 최대 수 (추천 5): ")
-    while not N.isdigit or int(N) > 15:
-        print("시간 제한으로 인해 최대 15")
+    while not N.isdigit:
         N = input("- 유사 단어의 최대 수 (추천 5): ")
         
     return eps, N
