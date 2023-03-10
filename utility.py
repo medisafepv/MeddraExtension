@@ -38,7 +38,7 @@ def clean_list(list_in):
         new_list.append(s.strip())
     return new_list
 
-def read_meddra_files(uploader, names_in, cols):
+def read_meddra_files(uploader_in, names_in, cols):
     '''
     Helper function for process_ type functions in main.py
     Takes in user uploaded data in uploader, renames headers according to names_in, and returns
@@ -48,9 +48,8 @@ def read_meddra_files(uploader, names_in, cols):
     names_in : list of headers to rename the existing headers (order sensitive)
     cols : subset of names_in to determine the column of return dataframe
     ''' 
-    uploader = uploader.value
-    file_name = list(uploader.keys())[0]
-    df = pd.read_csv(io.BytesIO(uploader[file_name]["content"]), 
+    uploader = uploader_in.value[0]
+    df = pd.read_csv(io.BytesIO(uploader["content"]), 
                      sep="$",
                      names=names_in)
     

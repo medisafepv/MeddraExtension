@@ -61,7 +61,7 @@ def merge_soc_pt_llt(hier, llt, how="inner", on="pt_code"):
     return spl
 
 
-def process_bridge(uploader):
+def process_bridge(uploader_in):
     '''
     Given uploaded WHOART-MEDDRA file, returns 
     1. dataframe with the columns [<WHOART column>, <LLT Code column>] only
@@ -78,9 +78,8 @@ def process_bridge(uploader):
     * 2.3 : removed trailing/leading whitespace in whoart column by clean_list() (LLT column unnecessary due to automatic identification as float)
     * 3.0 : removed mode parameter since only mode 1 processes bridge now (i.e., no need to branch paths)
     '''
-    uploader = uploader.value
-    file_name = list(uploader.keys())[0]
-    bridge = pd.read_excel(io.BytesIO(uploader[file_name]["content"]))
+    uploader = uploader_in.value[0]
+    bridge = pd.read_excel(io.BytesIO(uploader["content"]))
     
     bridge.columns = utility.clean_list(bridge.columns)
     
@@ -212,7 +211,7 @@ def connect(source, meddra, source_cols, mode, filename, how="left", first_call=
     return extended
 
 
-def process_ae(uploader, mode):
+def process_ae(uploader_in, mode):
     '''
     Processes AE list 
     Returns  
@@ -226,9 +225,8 @@ def process_ae(uploader, mode):
     * 2.2 : LLT lowercase standardization for indexing
     * 2.3 : remove rows if LLT or WHOART column is missing any values
     '''
-    uploader = uploader.value
-    file_name = list(uploader.keys())[0]
-    df = pd.read_excel(io.BytesIO(uploader[file_name]["content"]))
+    uploader = uploader_in.value[0]
+    df = pd.read_excel(io.BytesIO(uploader["content"]))
     
     # Drop empty rows at end, if any
     df = df.dropna(how="all")
